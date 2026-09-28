@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIP-RLTH - Dashboard Monitoring Usulan RTLH</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏠</text></svg>">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdfa',
+              100: '#ccfbf1',
+              200: '#99f6e4',
+              300: '#5eead4',
+              400: '#2dd4bf',
+              500: '#14b8a6',
+              600: '#0d9488',
+              700: '#0f766e',
+              800: '#115e59',
+              900: '#134e4a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- SheetJS (XLSX) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
+
+  <!-- ================= TOP NAVIGATION ================= -->
+  <header id="navbar" class="sticky top-0 z-30 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        
+        <!-- Brand Title & Icon -->
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
+            <i data-lucide="home" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="font-bold text-lg sm:text-xl tracking-tight bg-gradient-to-r from-brand-700 to-emerald-600 dark:from-brand-400 dark:to-emerald-400 bg-clip-text text-transparent">
+                SIP-RLTH
+              </span>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-brand-100 text-brand-800 dark:bg-brand-900/60 dark:text-brand-300 font-medium border border-brand-200 dark:border-brand-700">
+                Monitoring v1.0
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
+              Sistem Monitoring Usulan Rumah Tidak Layak Huni (RTLH)
+            </p>
+          </div>
+        </div>
+
+        <!-- Sync Indicator & Action Controls -->
+        <div class="flex items-center space-x-2 sm:space-x-4">
+          
+          <!-- Live Status Badge -->
+          <div id="sync-status-badge" class="hidden md:flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300">
+            <span class="relative flex h-2.5 w-2.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span id="sync-status-text" class="font-medium">Google Sheets Live</span>
+            <span class="text-slate-400">|</span>
+            <span id="sync-time" class="text-slate-500 dark:text-slate-400">Baru saja</span>
+          </div>
+
+          <!-- Mode Switcher: Live Sheet vs Simulasi -->
+          <div class="flex items-center bg-slate-100 dark:bg-slate-700 p-1 rounded-xl text-xs font-medium">
+            <button id="btn-mode-live" onclick="app.setDataSource('live')" class="px-2.5 py-1.5 rounded-lg transition-all text-slate-600 dark:text-slate-300 hover:text-brand-600">
+              <i data-lucide="cloud" class="w-3.5 h-3.5 inline mr-1"></i>Live Sheet
+            </button>
+            <button id="btn-mode-sample" onclick="app.setDataSource('sample')" class="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm transition-all">
+              <i data-lucide="database" class="w-3.5 h-3.5 inline mr-1"></i>Data Demo
+            </button>
+          </div>
+
+          <!-- Refresh Button -->
+          <button id="btn-refresh" onclick="app.refreshData()" title="Segarkan Data Sekarang" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-all flex items-center justify-center">
+            <i id="refresh-icon" data-lucide="refresh-cw" class="w-4 h-4"></i>
+          </button>
+
+          <!-- External Google Sheet Link -->
+          <a href="https://docs.google.com/spreadsheets/d/1UJ0ypFjBGbxwPgrwXFlValZtijIu7Jf6j0XzlHgFCDc/edit?gid=1707297001" target="_blank" rel="noopener noreferrer" title="Buka Spreadsheet di Tab Baru" class="hidden lg:flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-sm shadow-emerald-600/20">
+            <i data-lucide="sheet" class="w-3.5 h-3.5"></i>
+            <span>Buka Sheet</span>
+            <i data-lucide="external-link" class="w-3 h-3"></i>
+          </a>
+
+          <!-- Info / Settings Modal Button -->
+          <button onclick="app.openSettingsModal()" title="Pengaturan Koneksi & Info" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-all">
+            <i data-lucide="settings" class="w-4 h-4"></i>
+          </button>
+
+          <!-- Dark Mode Toggle -->
+          <button id="theme-toggle" onclick="app.toggleTheme()" title="Ubah Tema Gelap/Terang" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-all">
+            <i id="theme-icon" data-lucide="moon" class="w-4 h-4"></i>
+          </button>
+
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= MAIN CONTAINER ================= -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+    <!-- Notification Banner -->
+    <div id="notice-banner" class="rounded-2xl p-4 transition-all border flex items-start justify-between shadow-sm bg-blue-50/80 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900 text-blue-900 dark:text-blue-200">
+      <div class="flex items-start space-x-3">
+        <div id="banner-icon-container" class="mt-0.5 text-blue-600 dark:text-blue-400">
+          <i data-lucide="info" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h4 id="banner-title" class="font-semibold text-sm">Mode Data Simulasi Aktif (15 Usulan Contoh)</h4>
+          <p id="banner-desc" class="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+            Menampilkan contoh data survei lapangan lengkap agar Anda dapat melihat visualisasi grafik, filtering, dan lembar verifikasi RTLH.
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2 shrink-0 ml-4">
+        <button id="banner-action-btn" onclick="app.toggleModeFromBanner()" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-sm">
+          Coba Live Sheet
+        </button>
+      </div>
+    </div>
+
+    <!-- ================= EXECUTIVE KPI CARDS ================= -->
+    <section id="hero-stats" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      
+      <!-- Total Usulan -->
+      <div class="metric-card bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-medium">
+          <span>Total Usulan</span>
+          <span class="p-1.5 rounded-lg bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400">
+            <i data-lucide="files" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <div class="mt-2 flex items-baseline space-x-2">
+          <span id="stat-total" class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 dark:text-white">0</span>
+          <span class="text-xs text-slate-400">Rumah</span>
+        </div>
+        <div class="mt-2 text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center font-medium">
+          <i data-lucide="check-circle" class="w-3 h-3 mr-1 inline"></i>Terdata di Database
+        </div>
+      </div>
+
+      <!-- Prioritas Ekstrem (Desil 1 & 2) -->
+      <div class="metric-card bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-medium">
+          <span>Desil 1 & 2 (P1)</span>
+          <span class="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
+            <i data-lucide="flame" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <div class="mt-2 flex items-baseline space-x-2">
+          <span id="stat-desil-ekstrem" class="text-2xl sm:text-3xl font-bold tracking-tight text-rose-600 dark:text-rose-400">0</span>
+          <span id="stat-desil-pct" class="text-xs text-slate-400">(0%)</span>
+        </div>
+        <div class="mt-2 text-[11px] text-rose-600 dark:text-rose-400 flex items-center font-medium">
+          <i data-lucide="alert-circle" class="w-3 h-3 mr-1 inline"></i>Prioritas Bantuan Utama
+        </div>
+      </div>
+
+      <!-- Legalitas Lahan Sah -->
+      <div class="metric-card bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-medium">
+          <span>Lahan Sendiri / Sah</span>
+          <span class="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+            <i data-lucide="shield-check" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <div class="mt-2 flex items-baseline space-x-2">
+          <span id="stat-lahan-sendiri" class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 dark:text-white">0</span>
+          <span id="stat-lahan-pct" class="text-xs text-slate-400">(0%)</span>
+        </div>
+        <div class="mt-2 text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center font-medium">
+          <i data-lucide="check" class="w-3 h-3 mr-1 inline"></i>Clean & Clear (Syarat Mutlak)
+        </div>
+      </div>
+
+      <!-- Rusak Berat ALADIN -->
+      <div class="metric-card bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-medium">
+          <span>Kerusakan ALADIN</span>
+          <span class="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400">
+            <i data-lucide="hammer" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <div class="mt-2 flex items-baseline space-x-2">
+          <span id="stat-rusak-aladin" class="text-2xl sm:text-3xl font-bold tracking-tight text-amber-600 dark:text-amber-400">0</span>
+          <span class="text-xs text-slate-400">Kasus</span>
+        </div>
+        <div class="mt-2 text-[11px] text-amber-600 dark:text-amber-400 flex items-center font-medium">
+          <i data-lucide="activity" class="w-3 h-3 mr-1 inline"></i>Atap, Lantai & Dinding
+        </div>
+      </div>
+
+      <!-- Sanitasi / MCK Rusak -->
+      <div class="metric-card bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-medium">
+          <span>MCK Tidak Layak</span>
+          <span class="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400">
+            <i data-lucide="droplets" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <div class="mt-2 flex items-baseline space-x-2">
+          <span id="stat-mck-rusak" class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 dark:text-white">0</span>
+          <span id="stat-mck-pct" class="text-xs text-slate-400">(0%)</span>
+        </div>
+        <div class="mt-2 text-[11px] text-sky-600 dark:text-sky-400 flex items-center font-medium">
+          <i data-lucide="plus-circle" class="w-3 h-3 mr-1 inline"></i>Perlu Intervensi Jamban
+        </div>
+      </div>
+
+      <!-- Cakupan Wilayah -->
+      <div class="metric-card bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-medium">
+          <span>Wilayah Tercover</span>
+          <span class="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
+            <i data-lucide="map-pin" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <div class="mt-2 flex items-baseline space-x-2">
+          <span id="stat-wilayah" class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 dark:text-white">0</span>
+          <span class="text-xs text-slate-400">Kec / Desa</span>
+        </div>
+        <div class="mt-2 text-[11px] text-purple-600 dark:text-purple-400 flex items-center font-medium">
+          <i data-lucide="layers" class="w-3 h-3 mr-1 inline"></i>Sebaran Usulan
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ================= LAPORAN KABUPATEN / KOTA YANG MASUK ================= -->
+    <section id="kabupaten-report-section" class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/80 gap-2">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+            <i data-lucide="map-pin" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-base text-slate-800 dark:text-white">Laporan Usulan per Kabupaten / Kota</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Rekapitulasi jumlah usulan RTLH yang masuk berdasarkan Kabupaten/Kota</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span id="badge-total-kabupaten" class="text-xs font-semibold px-3 py-1 rounded-full bg-brand-100 text-brand-800 dark:bg-brand-900/60 dark:text-brand-300">
+            0 Kabupaten / Kota Terdata
+          </span>
+        </div>
+      </div>
+
+      <!-- Kabupaten Grid & Chart -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+        
+        <!-- Summary Cards per Kabupaten -->
+        <div class="lg:col-span-1 space-y-2.5 max-h-[300px] overflow-y-auto pr-1" id="kabupaten-cards-container">
+          <!-- Populated dynamically: card for each Kabupaten -->
+        </div>
+
+        <!-- Chart Kabupaten -->
+        <div class="lg:col-span-2 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700/50 flex flex-col justify-between min-h-[250px]">
+          <div class="flex items-center justify-between text-xs text-slate-500 mb-2">
+            <span class="font-semibold text-slate-700 dark:text-slate-300">Grafik Jumlah Usulan per Kabupaten / Kota</span>
+            <span class="text-[11px] text-slate-400">Klik batang untuk memfilter tabel otomatis</span>
+          </div>
+          <div class="relative flex-1 min-h-[200px]">
+            <canvas id="chart-kabupaten"></canvas>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ================= FILTER & SEARCH BAR ================= -->
+    <section id="filter-controls" class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm space-y-4">
+      
+      <!-- Top Row: Search & Action Buttons -->
+      <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        
+        <!-- Global Search Input -->
+        <div class="relative flex-1">
+          <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+            <i data-lucide="search" class="w-4 h-4"></i>
+          </span>
+          <input 
+            type="text" 
+            id="search-input" 
+            oninput="app.handleSearch(this.value)" 
+            placeholder="Cari Nama Penerima, NIK, Desa, atau Pengusul..." 
+            class="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-slate-800 dark:text-slate-100 placeholder-slate-400 transition-all"
+          >
+          <button id="btn-clear-search" onclick="app.clearSearch()" class="hidden absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- Export Buttons Group -->
+        <div class="flex items-center space-x-2 shrink-0">
+          <button onclick="app.exportExcel()" class="flex items-center space-x-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-all">
+            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+            <span>Export Excel</span>
+          </button>
+          <button onclick="app.exportCSV()" class="flex items-center space-x-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-all">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>Export CSV</span>
+          </button>
+          <button onclick="app.printSummaryReport()" class="flex items-center space-x-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-all">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+            <span>Cetak Rekap</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Bottom Row: Dynamic Filter Selects with Kabupaten -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 text-xs">
+        
+        <!-- Filter Kabupaten / Kota -->
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 font-semibold mb-1">Kabupaten / Kota:</label>
+          <select id="filter-kabupaten" onchange="app.handleFilterChange()" class="w-full py-1.5 px-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-brand-500 text-slate-800 dark:text-slate-200 font-medium">
+            <option value="">Semua Kabupaten/Kota</option>
+          </select>
+        </div>
+
+        <!-- Filter Kecamatan -->
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 font-medium mb-1">Kecamatan:</label>
+          <select id="filter-kecamatan" onchange="app.handleFilterChange()" class="w-full py-1.5 px-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-brand-500 text-slate-800 dark:text-slate-200">
+            <option value="">Semua Kecamatan</option>
+          </select>
+        </div>
+
+        <!-- Filter Kelurahan/Desa -->
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 font-medium mb-1">Kelurahan / Desa:</label>
+          <select id="filter-desa" onchange="app.handleFilterChange()" class="w-full py-1.5 px-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-brand-500 text-slate-800 dark:text-slate-200">
+            <option value="">Semua Desa</option>
+          </select>
+        </div>
+
+        <!-- Filter Desil -->
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 font-medium mb-1">Status Desil:</label>
+          <select id="filter-desil" onchange="app.handleFilterChange()" class="w-full py-1.5 px-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-brand-500 text-slate-800 dark:text-slate-200">
+            <option value="">Semua Desil</option>
+            <option value="Desil 1">Desil 1 (Sangat Miskin)</option>
+            <option value="Desil 2">Desil 2 (Miskin)</option>
+            <option value="Desil 3">Desil 3 (Hampir Miskin)</option>
+            <option value="Desil 4">Desil 4 (Rentan)</option>
+            <option value="Non Desil">Non Desil</option>
+          </select>
+        </div>
+
+        <!-- Filter Status Lahan -->
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 font-medium mb-1">Status Lahan:</label>
+          <select id="filter-lahan" onchange="app.handleFilterChange()" class="w-full py-1.5 px-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-brand-500 text-slate-800 dark:text-slate-200">
+            <option value="">Semua Status Lahan</option>
+            <option value="Milik Sendiri">Milik Sendiri (SHM / Girik)</option>
+            <option value="Sertifikat">Sertifikat</option>
+            <option value="Hibah">Hibah</option>
+            <option value="Tanah Keluarga">Tanah Keluarga / Warisan</option>
+            <option value="Menumpang">Menumpang / Lainnya</option>
+          </select>
+        </div>
+
+        <!-- Filter Prioritas RTLH & Reset -->
+        <div class="flex items-end space-x-2">
+          <div class="flex-1">
+            <label class="block text-slate-500 dark:text-slate-400 font-medium mb-1">Prioritas Bantuan:</label>
+            <select id="filter-prioritas" onchange="app.handleFilterChange()" class="w-full py-1.5 px-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-brand-500 text-slate-800 dark:text-slate-200">
+              <option value="">Semua Prioritas</option>
+              <option value="P1">Prioritas 1 (Sangat Tinggi)</option>
+              <option value="P2">Prioritas 2 (Tinggi)</option>
+              <option value="P3">Prioritas 3 (Sedang)</option>
+              <option value="P4">Perlu Verifikasi Ulang</option>
+            </select>
+          </div>
+          <button onclick="app.resetFilters()" title="Reset Semua Filter" class="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300">
+            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ================= DATA TABLE SECTION ================= -->
+    <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm overflow-hidden">
+      
+      <!-- Table Header & Counter -->
+      <div class="p-4 border-b border-slate-100 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="flex items-center space-x-2">
+          <h3 class="font-bold text-base text-slate-800 dark:text-white">Daftar Usulan Calon Penerima RTLH</h3>
+          <span id="table-record-count" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
+            0 Data
+          </span>
+        </div>
+        <div class="flex items-center space-x-2 text-xs text-slate-500">
+          <span>Tampilkan:</span>
+          <select id="select-page-size" onchange="app.changePageSize(this.value)" class="py-1 px-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200">
+            <option value="10">10 usulan</option>
+            <option value="25">25 usulan</option>
+            <option value="50">50 usulan</option>
+            <option value="100">100 usulan</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Table Body Container -->
+      <div class="table-container min-h-[300px]">
+        <table class="w-full text-left text-xs data-table">
+          <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-700 uppercase tracking-wider">
+            <tr>
+              <th class="py-3 px-4 w-12 text-center">No</th>
+              <th class="py-3 px-4 cursor-pointer hover:text-brand-600" onclick="app.sortTable('timestamp')">
+                Waktu Usul <i data-lucide="arrow-up-down" class="w-3 h-3 inline"></i>
+              </th>
+              <th class="py-3 px-4 cursor-pointer hover:text-brand-600" onclick="app.sortTable('namaPenerima')">
+                Calon Penerima & NIK <i data-lucide="arrow-up-down" class="w-3 h-3 inline"></i>
+              </th>
+              <th class="py-3 px-4 cursor-pointer hover:text-brand-600" onclick="app.sortTable('kecamatan')">
+                Wilayah <i data-lucide="arrow-up-down" class="w-3 h-3 inline"></i>
+              </th>
+              <th class="py-3 px-4">Pekerjaan / UMP</th>
+              <th class="py-3 px-4 cursor-pointer hover:text-brand-600" onclick="app.sortTable('hasilDesil')">
+                Desil & Prioritas <i data-lucide="arrow-up-down" class="w-3 h-3 inline"></i>
+              </th>
+              <th class="py-3 px-4">Status Lahan</th>
+              <th class="py-3 px-4">Kerusakan ALADIN</th>
+              <th class="py-3 px-4 text-center">Foto & Berkas</th>
+              <th class="py-3 px-4 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="table-body" class="divide-y divide-slate-100 dark:divide-slate-700/60 text-slate-700 dark:text-slate-300">
+            <!-- Table rows populated dynamically -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty State Container -->
+      <div id="table-empty-state" class="hidden p-12 text-center space-y-3">
+        <div class="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 mx-auto flex items-center justify-center">
+          <i data-lucide="inbox" class="w-8 h-8"></i>
+        </div>
+        <h4 class="font-bold text-base text-slate-700 dark:text-slate-200">Tidak ada data usulan</h4>
+        <p class="text-xs text-slate-500 max-w-sm mx-auto">
+          Tidak ditemukan usulan RTLH yang cocok dengan kriteria pencarian atau filter yang dipilih.
+        </p>
+        <button onclick="app.resetFilters()" class="text-xs px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition-all">
+          Reset Filter Pencarian
+        </button>
+      </div>
+
+      <!-- Pagination Footer -->
+      <div id="pagination-controls" class="p-4 border-t border-slate-100 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
+        <div id="pagination-info">
+          Menampilkan 0 - 0 dari 0 data
+        </div>
+        <div class="flex items-center space-x-1" id="pagination-buttons">
+          <!-- Dynamically generated page buttons -->
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-4 text-center text-xs text-slate-500 dark:text-slate-400">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <span class="font-bold text-brand-600 dark:text-brand-400">SIP-RLTH</span>
+        <span>&bull;</span>
+        <span>Monitoring & Evaluasi Usulan Bantuan Perumahan RTLH</span>
+      </div>
+      <div class="flex items-center space-x-3">
+        <span>Tersinkronisasi otomatis dengan Google Sheets</span>
+        <button onclick="app.openSettingsModal()" class="text-brand-600 hover:underline font-medium">Bantuan & Konfigurasi</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ================= MODAL: DETAIL PROFIL RTLH ================= -->
+  <div id="modal-detail" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-slide-up">
+      
+      <!-- Modal Header -->
+      <div class="p-5 border-b border-slate-100 dark:border-slate-700 flex items-start justify-between bg-slate-50/50 dark:bg-slate-900/50">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span id="detail-priority-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold badge-p1">
+              Prioritas 1
+            </span>
+            <span id="detail-desil-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-700">
+              Desil 1
+            </span>
+            <span id="detail-timestamp" class="text-xs text-slate-400"></span>
+          </div>
+          <h2 id="detail-nama" class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white mt-1"></h2>
+          <p id="detail-alamat-summary" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center">
+            <i data-lucide="map-pin" class="w-3.5 h-3.5 mr-1 inline text-brand-600"></i>
+            <span id="detail-lokasi-text"></span>
+          </p>
+        </div>
+        <button onclick="app.closeDetailModal()" class="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Modal Tabs Navigation -->
+      <div class="flex border-b border-slate-100 dark:border-slate-700 px-5 text-xs font-semibold text-slate-500 bg-white dark:bg-slate-800">
+        <button onclick="app.switchDetailTab('tab-bio')" id="nav-tab-bio" class="py-3 px-3 border-b-2 border-brand-600 text-brand-600 flex items-center space-x-1.5">
+          <i data-lucide="user" class="w-4 h-4"></i>
+          <span>Biodata & Sosial</span>
+        </button>
+        <button onclick="app.switchDetailTab('tab-fisik')" id="nav-tab-fisik" class="py-3 px-3 border-b-2 border-transparent hover:text-slate-700 dark:hover:text-slate-200 flex items-center space-x-1.5">
+          <i data-lucide="home" class="w-4 h-4"></i>
+          <span>Kerusakan Fisik</span>
+        </button>
+        <button onclick="app.switchDetailTab('tab-foto')" id="nav-tab-foto" class="py-3 px-3 border-b-2 border-transparent hover:text-slate-700 dark:hover:text-slate-200 flex items-center space-x-1.5">
+          <i data-lucide="image" class="w-4 h-4"></i>
+          <span>Galeri Rumah (4 Sisi)</span>
+        </button>
+        <button onclick="app.switchDetailTab('tab-dokumen')" id="nav-tab-dokumen" class="py-3 px-3 border-b-2 border-transparent hover:text-slate-700 dark:hover:text-slate-200 flex items-center space-x-1.5">
+          <i data-lucide="file-text" class="w-4 h-4"></i>
+          <span>Berkas & Legalitas</span>
+        </button>
+      </div>
+
+      <!-- Modal Body Content (Scrollable) -->
+      <div class="p-5 overflow-y-auto flex-1 space-y-6 text-sm">
+        
+        <!-- TAB 1: BIODATA & SOSIAL EKONOMI -->
+        <div id="tab-bio" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <!-- Profil Calon Penerima -->
+            <div class="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 space-y-3">
+              <h4 class="font-bold text-xs uppercase tracking-wider text-brand-700 dark:text-brand-400 flex items-center">
+                <i data-lucide="id-card" class="w-4 h-4 mr-1.5"></i> Identitas Calon Penerima
+              </h4>
+              <div class="space-y-2 text-xs">
+                <div>
+                  <span class="text-slate-400 block">Nomor Induk Kependudukan (NIK):</span>
+                  <div class="flex items-center space-x-2 font-mono font-bold text-sm text-slate-800 dark:text-slate-100">
+                    <span id="detail-nik"></span>
+                    <button onclick="app.toggleMaskNIK()" title="Sensor / Buka NIK" class="text-slate-400 hover:text-brand-600">
+                      <i id="btn-mask-icon" data-lucide="eye" class="w-3.5 h-3.5"></i>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <span class="text-slate-400 block">Tempat, Tanggal Lahir:</span>
+                  <span id="detail-ttl" class="font-medium text-slate-700 dark:text-slate-200"></span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block">Pekerjaan:</span>
+                  <span id="detail-pekerjaan" class="font-medium text-slate-700 dark:text-slate-200"></span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block">Nomor HP / WhatsApp:</span>
+                  <div class="flex items-center space-x-2">
+                    <span id="detail-nohp" class="font-medium text-slate-700 dark:text-slate-200"></span>
+                    <a id="detail-btn-wa" href="#" target="_blank" class="text-emerald-600 hover:text-emerald-700 font-semibold text-[11px] flex items-center">
+                      <i data-lucide="message-circle" class="w-3 h-3 mr-1"></i>Kirim WA
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sosial Ekonomi & P3KE -->
+            <div class="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 space-y-3">
+              <h4 class="font-bold text-xs uppercase tracking-wider text-brand-700 dark:text-brand-400 flex items-center">
+                <i data-lucide="trending-down" class="w-4 h-4 mr-1.5"></i> Kondisi Sosial Ekonomi
+              </h4>
+              <div class="space-y-2 text-xs">
+                <div>
+                  <span class="text-slate-400 block">Tingkat Penghasilan:</span>
+                  <span id="detail-penghasilan" class="inline-block px-2 py-0.5 rounded font-semibold bg-emerald-100 text-emerald-800 text-xs"></span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block">Status Database Kemiskinan:</span>
+                  <span id="detail-cek-desil" class="font-medium text-slate-700 dark:text-slate-200"></span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block">Tingkat Desil:</span>
+                  <span id="detail-hasil-desil" class="font-bold text-slate-800 dark:text-slate-100"></span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block">Petugas Surveyor / Pengusul:</span>
+                  <span id="detail-pengusul" class="font-medium text-slate-700 dark:text-slate-200"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Alamat Lengkap & Lahan -->
+            <div class="md:col-span-2 bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 space-y-2">
+              <h4 class="font-bold text-xs uppercase tracking-wider text-brand-700 dark:text-brand-400 flex items-center">
+                <i data-lucide="map" class="w-4 h-4 mr-1.5"></i> Alamat & Lokasi Rumah
+              </h4>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                <div>
+                  <span class="text-slate-400 block">Kabupaten/Kota:</span>
+                  <span id="detail-kabupaten" class="font-semibold text-slate-800 dark:text-slate-200"></span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block">Kecamatan:</span>
+                  <span id="detail-kecamatan" class="font-semibold text-slate-800 dark:text-slate-200"></span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block">Kelurahan/Desa:</span>
+                  <span id="detail-desa" class="font-semibold text-slate-800 dark:text-slate-200"></span>
+                </div>
+                <div class="sm:col-span-3 pt-1">
+                  <span class="text-slate-400 block">Alamat Rinci:</span>
+                  <span id="detail-alamat" class="font-medium text-slate-800 dark:text-slate-100"></span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- TAB 2: KERUSAKAN FISIK RUMAH -->
+        <div id="tab-fisik" class="hidden space-y-4">
+          <div class="bg-amber-50/50 dark:bg-amber-950/20 p-4 rounded-2xl border border-amber-200 dark:border-amber-900 space-y-3">
+            <h4 class="font-bold text-sm text-amber-900 dark:text-amber-200 flex items-center">
+              <i data-lucide="alert-triangle" class="w-4 h-4 mr-2 text-amber-600"></i>
+              Uraian Bagian Kerusakan Rumah (ALADIN & Fasilitas)
+            </h4>
+            <p id="detail-bagian-kerusakan" class="text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-medium bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700"></p>
+          </div>
+
+          <!-- Komponen Checklist Visual -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div id="check-atap" class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+              <i data-lucide="umbrella" class="w-6 h-6 mx-auto text-slate-400 mb-1"></i>
+              <span class="font-bold text-xs block">Atap</span>
+              <span id="status-atap" class="text-[10px] text-slate-500 font-medium">Bocor / Rapuh</span>
+            </div>
+            <div id="check-dinding" class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+              <i data-lucide="brick-wall" class="w-6 h-6 mx-auto text-slate-400 mb-1"></i>
+              <span class="font-bold text-xs block">Dinding</span>
+              <span id="status-dinding" class="text-[10px] text-slate-500 font-medium">Bambu / Retak</span>
+            </div>
+            <div id="check-lantai" class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+              <i data-lucide="layers" class="w-6 h-6 mx-auto text-slate-400 mb-1"></i>
+              <span class="font-bold text-xs block">Lantai</span>
+              <span id="status-lantai" class="text-[10px] text-slate-500 font-medium">Tanah / Pecah</span>
+            </div>
+            <div id="check-mck" class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+              <i data-lucide="droplets" class="w-6 h-6 mx-auto text-slate-400 mb-1"></i>
+              <span class="font-bold text-xs block">Sanitasi / MCK</span>
+              <span id="status-mck" class="text-[10px] text-slate-500 font-medium">Belum Layak</span>
+            </div>
+          </div>
+
+          <!-- Legalitas Lahan & Luas -->
+          <div class="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-xs">
+            <div>
+              <span class="text-slate-400 block">Status Hak Atas Tanah:</span>
+              <span id="detail-status-lahan" class="font-bold text-slate-800 dark:text-slate-100 text-sm"></span>
+            </div>
+            <div class="text-right">
+              <span class="text-slate-400 block">Luas Tanah:</span>
+              <span id="detail-luas-tanah" class="font-bold text-brand-600 dark:text-brand-400 text-sm"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: GALERI FOTO RUMAH 4 SISI -->
+        <div id="tab-foto" class="hidden space-y-4">
+          <div class="grid grid-cols-2 sm:grid-cols-2 gap-4">
+            
+            <!-- Depan -->
+            <div class="space-y-1.5">
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center">
+                <i data-lucide="camera" class="w-3.5 h-3.5 mr-1 text-brand-600"></i> Tampak Depan
+              </span>
+              <div class="group relative aspect-video bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 cursor-pointer" onclick="app.zoomPhoto('depan')">
+                <img id="detail-foto-depan" src="" alt="Tampak Depan" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300">
+                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all text-white text-xs font-medium">
+                  <i data-lucide="zoom-in" class="w-5 h-5 mr-1"></i> Perbesar
+                </div>
+              </div>
+            </div>
+
+            <!-- Belakang -->
+            <div class="space-y-1.5">
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center">
+                <i data-lucide="camera" class="w-3.5 h-3.5 mr-1 text-brand-600"></i> Tampak Belakang
+              </span>
+              <div class="group relative aspect-video bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 cursor-pointer" onclick="app.zoomPhoto('belakang')">
+                <img id="detail-foto-belakang" src="" alt="Tampak Belakang" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300">
+                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all text-white text-xs font-medium">
+                  <i data-lucide="zoom-in" class="w-5 h-5 mr-1"></i> Perbesar
+                </div>
+              </div>
+            </div>
+
+            <!-- Samping -->
+            <div class="space-y-1.5">
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center">
+                <i data-lucide="camera" class="w-3.5 h-3.5 mr-1 text-brand-600"></i> Tampak Samping
+              </span>
+              <div class="group relative aspect-video bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 cursor-pointer" onclick="app.zoomPhoto('samping')">
+                <img id="detail-foto-samping" src="" alt="Tampak Samping" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300">
+                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all text-white text-xs font-medium">
+                  <i data-lucide="zoom-in" class="w-5 h-5 mr-1"></i> Perbesar
+                </div>
+              </div>
+            </div>
+
+            <!-- MCK -->
+            <div class="space-y-1.5">
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center">
+                <i data-lucide="camera" class="w-3.5 h-3.5 mr-1 text-brand-600"></i> Tampak MCK / Sanitasi
+              </span>
+              <div class="group relative aspect-video bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 cursor-pointer" onclick="app.zoomPhoto('mck')">
+                <img id="detail-foto-mck" src="" alt="Tampak MCK" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300">
+                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all text-white text-xs font-medium">
+                  <i data-lucide="zoom-in" class="w-5 h-5 mr-1"></i> Perbesar
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- TAB 4: BERKAS & DOKUMEN -->
+        <div id="tab-dokumen" class="hidden space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            
+            <!-- Dokumen KTP -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2 text-center">
+              <div class="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 mx-auto flex items-center justify-center">
+                <i data-lucide="file-badge" class="w-6 h-6"></i>
+              </div>
+              <h5 class="font-bold text-xs">KTP Calon Penerima</h5>
+              <div id="status-dok-ktp" class="text-[11px] text-emerald-600 font-semibold">Tersedia</div>
+              <a id="link-dok-ktp" href="#" target="_blank" class="inline-block mt-2 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-all">
+                Lihat Berkas
+              </a>
+            </div>
+
+            <!-- Dokumen KK -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2 text-center">
+              <div class="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center">
+                <i data-lucide="users" class="w-6 h-6"></i>
+              </div>
+              <h5 class="font-bold text-xs">Kartu Keluarga (KK)</h5>
+              <div id="status-dok-kk" class="text-[11px] text-emerald-600 font-semibold">Tersedia</div>
+              <a id="link-dok-kk" href="#" target="_blank" class="inline-block mt-2 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-all">
+                Lihat Berkas
+              </a>
+            </div>
+
+            <!-- Dokumen Tanah / Sertifikat -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2 text-center">
+              <div class="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
+                <i data-lucide="stamp" class="w-6 h-6"></i>
+              </div>
+              <h5 class="font-bold text-xs">Sertifikat / Bukti Tanah</h5>
+              <div id="status-dok-tanah" class="text-[11px] text-emerald-600 font-semibold">Tersedia</div>
+              <a id="link-dok-tanah" href="#" target="_blank" class="inline-block mt-2 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-all">
+                Lihat Berkas
+              </a>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer Action Buttons -->
+      <div class="p-4 border-t border-slate-100 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50 dark:bg-slate-900/50">
+        <div class="flex items-center space-x-2">
+          <a id="btn-wa-action" href="#" target="_blank" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-sm">
+            <i data-lucide="message-circle" class="w-4 h-4"></i>
+            <span>Chat WhatsApp</span>
+          </a>
+          <button onclick="app.printSingleRecordVerification()" class="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center space-x-1.5">
+            <i data-lucide="printer" class="w-4 h-4"></i>
+            <span>Cetak Form Verifikasi Lapangan</span>
+          </button>
+        </div>
+        <button onclick="app.closeDetailModal()" class="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 text-xs font-semibold">
+          Tutup
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: PHOTO LIGHTBOX ZOOM ================= -->
+  <div id="modal-lightbox" class="fixed inset-0 z-50 hidden bg-black/90 flex flex-col items-center justify-center p-4">
+    <div class="relative max-w-4xl w-full flex flex-col items-center">
+      <button onclick="app.closeLightbox()" class="absolute -top-12 right-0 text-white/80 hover:text-white p-2">
+        <i data-lucide="x" class="w-7 h-7"></i>
+      </button>
+      <img id="lightbox-img" src="" alt="Pratinjau Foto" class="max-h-[80vh] w-auto object-contain rounded-2xl shadow-2xl border border-white/10">
+      <h4 id="lightbox-caption" class="text-white text-sm font-semibold mt-3"></h4>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: SETTINGS & GOOGLE SHEET CONFIG ================= -->
+  <div id="modal-settings" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-slide-up">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-9 h-9 rounded-xl bg-brand-100 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+            <i data-lucide="database" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-base text-slate-800 dark:text-white">Pengaturan Google Sheets</h3>
+            <p class="text-xs text-slate-400">Integrasi realtime formulir RTLH</p>
+          </div>
+        </div>
+        <button onclick="app.closeSettingsModal()" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-medium text-slate-700 dark:text-slate-300 mb-1">Spreadsheet ID:</label>
+          <input type="text" id="config-sheet-id" value="1UJ0ypFjBGbxwPgrwXFlValZtijIu7Jf6j0XzlHgFCDc" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-800 dark:text-slate-200">
+        </div>
+        <div>
+          <label class="block font-medium text-slate-700 dark:text-slate-300 mb-1">Sheet GID (Tab Jawaban):</label>
+          <input type="text" id="config-sheet-gid" value="1707297001" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-800 dark:text-slate-200">
+        </div>
+        <div>
+          <label class="block font-medium text-slate-700 dark:text-slate-300 mb-1">Interval Refresh Otomatis:</label>
+          <select id="config-auto-refresh" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-200">
+            <option value="0">Mati (Refresh Manual Saja)</option>
+            <option value="30000">Setiap 30 Detik</option>
+            <option value="60000" selected>Setiap 1 Menit</option>
+            <option value="300000">Setiap 5 Menit</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="p-3 bg-brand-50 dark:bg-brand-950/40 rounded-xl border border-brand-200 dark:border-brand-900 text-xs text-brand-800 dark:text-brand-300">
+        <p class="font-medium">💡 Koneksi Bebas Hambatan (Zero-CORS):</p>
+        <p class="mt-0.5 text-[11px] text-brand-700 dark:text-brand-400">
+          Dashboard ini menggunakan teknologi Google Visualization JSONP sehingga dapat membaca data Google Sheets secara instan tanpa perlu server proxy tambahan.
+        </p>
+      </div>
+
+      <div class="flex items-center justify-end space-x-2 pt-2">
+        <button onclick="app.closeSettingsModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+          Batal
+        </button>
+        <button onclick="app.saveConfig()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white shadow-sm">
+          Simpan & Hubungkan Ulang
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= PRINTABLE OFFICIAL REPORT CONTAINER ================= -->
+  <div id="print-area" class="print-only hidden p-6 text-black bg-white">
+    <!-- Content injected dynamically during print -->
+  </div>
+
+  <!-- Application Logic -->
+  <script src="js/sampleData.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // Initialize Lucide icons on page load
+    lucide.createIcons();
+  </script>
+</body>
+</html>
