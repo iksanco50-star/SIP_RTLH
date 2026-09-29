@@ -7,7 +7,7 @@ class RTLHDashboardApp {
   constructor() {
     this.sheetId = "1UJ0ypFjBGbxwPgrwXFlValZtijIu7Jf6j0XzlHgFCDc";
     this.sheetGid = "1707297001";
-    this.dataSource = "sample"; // 'sample' | 'live'
+    this.dataSource = "live"; // 'sample' | 'live'
     this.rawData = [];
     this.filteredData = [];
     this.liveSheetData = [];
@@ -42,20 +42,34 @@ class RTLHDashboardApp {
   }
 
   init() {
-    this.applyTheme(this.currentTheme);
-    this.setupAutoRefresh();
-    
-    // Initial fetch to check live sheet first, but initialize with sample if live is empty
-    this.fetchGoogleSheetData(false).then(() => {
-      if (this.liveSheetData.length > 0) {
-        this.setDataSource("live");
-      } else {
-        this.setDataSource("sample");
-      }
-    }).catch(() => {
-      this.setDataSource("sample");
+  this.applyTheme(this.currentTheme);
+  this.setupAutoRefresh();
+
+  // Load Google Sheet langsung saat pertama buka
+  this.fetchGoogleSheetData(false)
+    .then(() => {
+
+      this.dataSource = "live";
+      this.rawData = [...this.liveSheetData];
+
+      // render ulang semua komponen
+      this.updateKabupatenFilterDropdown();
+      this.applyFilters();
+
+      this.updateLastSyncDisplay();
+
+    })
+    .catch((error) => {
+
+      console.error("Gagal mengambil Google Sheet:", error);
+
+      this.dataSource = "live";
+      this.rawData = [];
+
+      this.applyFilters();
+
     });
-  }
+}
 
   /* ================= THEME TOGGLE ================= */
   toggleTheme() {
@@ -127,12 +141,9 @@ class RTLHDashboardApp {
   }
 
   toggleModeFromBanner() {
-    if (this.dataSource === "sample") {
       this.setDataSource("live");
-    } else {
-      this.setDataSource("sample");
+      this.refreshData();
     }
-  }
 
   /* ================= GOOGLE SHEETS FETCH ENGINE (JSONP / CROS-FREE) ================= */
   fetchGoogleSheetData(showIndicator = true) {
@@ -806,7 +817,7 @@ class RTLHDashboardApp {
     pageRecords.forEach((item, index) => {
       const rowNo = startIndex + index + 1;
       const maskedNIK = this.maskNIKString(item.nik);
-      const shortDate = item.timestamp ? item.timestamp.substring(0, 16) : "-";
+      const shortDate = item.timestamp ? item.timestamp.substring(0, 10) : "-";
 
       // Damage pills
       let damagePills = "";
